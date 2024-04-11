@@ -6,9 +6,9 @@ BLEDevice BLEconnect() {
   if (central) {
     Serial.print("Connected to central: ");
     Serial.println(central.address());
+    delay(2000);
     BLE.stopAdvertise();
   }
-  delay(1000);
   return central;
 }
 
@@ -17,8 +17,6 @@ char* BLEread(BLEDevice central, BLECharacteristic charactersitic, char* outData
   BLE.poll();
 
   if (charactersitic.written()) {
-    delete[] outData;
-    outData = nullptr;
 
     int ssid_length = charactersitic.valueLength();
     const uint8_t* data = charactersitic.value();
