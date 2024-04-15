@@ -6,7 +6,7 @@ BLEDevice BLEconnect() {
   if (central) {
     Serial.print("Connected to central: ");
     Serial.println(central.address());
-    delay(2000);
+    delay(3000);
     BLE.stopAdvertise();
   }
   return central;

@@ -10,6 +10,9 @@
 #include <ArduinoBLE.h>
 #include "HX711.h"
 #include "functions.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
 
 //deep sleep and RTC memory
 
@@ -17,7 +20,7 @@ bool deepsleep = false;
 int wakeupId = 1; // 1 for timer 2 for ext0 and 0 for others used to store the reason for wake up
 
 #define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 60  // in seconds, time that the device will sleep
+int sleep_time = 60; // in seconds, time that the device will sleep
 
 RTC_DATA_ATTR char ssid[32];
 RTC_DATA_ATTR char password[32];
@@ -42,14 +45,16 @@ int get_wakeup_reason() {
 
 HX711 scale;
 
-const int LOADCELL_DOUT_PIN = 18;
-const int LOADCELL_SCK_PIN = 19;
+const int LOADCELL_DOUT_PIN = 19;
+const int LOADCELL_SCK_PIN = 23;
 
 float callbFac = 22404.8;
 bool callibrate = true;
 bool measure_load = true;
 unsigned long current_time_load_measure = 0;
 
+// oled setup and variables
+Adafruit_SSD1306* display;
 // wifi setup and variables
 
 char* ssid_get = nullptr;/*only for read from ble and buffer unitll passed to RTC memory */
@@ -71,7 +76,7 @@ int ble_status = 0;
  4 = ble begin failed
 */
 
-int BLEswitch = 23;  // long press for turn on short for turn off
+int BLEswitch = 32;  // long press for turn on short for turn off
 bool bleOn = false;
 
 BLEDevice central;
@@ -138,25 +143,28 @@ void setup() {
   WiFi.disconnect();
 
   Serial.println("Gasolina by Silicone a Rysara team");
+  display = initOled(); // initialize the oled screen
 }
 
 void loop() {
 
   // setting up the deep sleep conditions for the device
 
-  if(wakeupId == 1){ // if woken up by timer we wait till the upload is complete or for 45 seconds
+  if(wakeupId == 1){ // if woken up by timer we wait till the upload is complete or for 25 seconds
+    sleep_time = 60*5; // 5 minutes
     if(upload_complete){
       deepsleep = true;
-    }else if(millis() > 45000){
+    }else if(millis() > 25000){
       deepsleep = true;
     }
   }else if(wakeupId == 2){ // if woken up by ext0 we wait for 60 secods if BLE is off or 3 minutes if BLE is on
+    sleep_time = 60;
     if(millis()>60000 && !bleOn){
       deepsleep = true;
     }else if(millis()>1000*60*3){
       deepsleep = true;
     }
-  }else if (wakeupId == 0 && millis() > 1000*60){ // this will run at the first boot up of the device and will go to sleep after 1 minute
+  }else if (wakeupId == 0 && ((WiFi.status() == WL_CONNECTED)|| millis()>10000)){ // this will run at the first boot up of the device and will go to sleep after 1 minute
     deepsleep = true;
   }
   
@@ -170,6 +178,7 @@ void loop() {
     ble_status = 1;
     bleOn = true;
     Serial.print("ble sts 1");
+    display = displayStatus(display, "BLE on");
     delay(500);
   }
 
@@ -178,12 +187,14 @@ void loop() {
     if (ble_status == 1 || ble_status == 4) {
       BLEsetup();
       if(ble_status == 4){
+        Serial.println("BLE begin failed");
       }
     }
 
     if (central.connected()) {
       if(ble_status == 2){
-        Serial.println("Connected to central");// here u can add to oled
+        Serial.println("Connected to central");
+        display = displayStatus(display, "Connected to central");
       }
       ble_status = 3;
 
@@ -211,6 +222,7 @@ void loop() {
     }else if(!central.connected() && ble_status != 4) {
       if(ble_status == 3){  // if the central is disconnected from the device(these little things are done to prevent infinite prints)
         Serial.println("Disconnected from central");
+        display = displayStatus(display, "Disconnected from central");
       }
       ble_status = 2; // set the status to 2 to show that the device is on and the BLE is on but not connected to central and try to connect to central
       central = BLEconnect();
@@ -219,6 +231,7 @@ void loop() {
     if (bleOn) { // if ble is on and the status is 0 turn it off
       BLE.disconnect();
       Serial.println("BLE off");
+      display = displayStatus(display, "BLE off");
       BLE.end();
       bleOn = false;
     }
@@ -228,11 +241,14 @@ void loop() {
     initWiFi(ssid, password);
     if(WiFi.status() == WL_CONNECTED){
       Serial.println("Connected to WiFi");
+      display = displayStatus(display, "Connected to WiFi");
       ble_status = 0;
     }
   } else if (wifiscan) { // scan wifi networks if wifiscan` is set to 1
     networks = "";
+    display = displayStatus(display, "Scanning for WiFi");
     networks = scanWifi();
+    display = displayStatus(display, "Scan complete");
     wifiscan = 0;
   }
 
@@ -245,15 +261,20 @@ void loop() {
     current_time_load_measure = millis();
     weight = readLoad(scale);
     Serial.printf("average value:\t %.2f \n", weight);
+    display = displayWeight(display, String(weight));
   }
 
   /*deep sleep by ext0 or timer*/
   if(deepsleep) {
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_4, 1);
 
-    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+    display = clearOled(display);
+    delete display;
+    display = nullptr;
+
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
+    esp_sleep_enable_timer_wakeup(sleep_time * uS_TO_S_FACTOR);
     delay(1000);
-    Serial.println("Setup ESP32 to sleep for " + String(TIME_TO_SLEEP) + " Seconds");
+    Serial.println("Setup ESP32 to sleep for " + String(sleep_time) + " Seconds");
     Serial.println("Going to sleep now");
     Serial.flush();
     esp_deep_sleep_start();
