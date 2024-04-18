@@ -48,6 +48,7 @@ HX711 scale;
 const int LOADCELL_DOUT_PIN = 19;
 const int LOADCELL_SCK_PIN = 23;
 
+float weight = 0;
 float callbFac = 22404.8;
 bool callibrate = true;
 bool measure_load = true;
@@ -66,7 +67,7 @@ bool upload_complete = false; // technically firebase but ok
 
 
 // BLE setup and variables
-
+int status_arr[3] = {0, 0, 0}; // 0 for ble status and 1 for wifi status 2 for battry status
 int ble_status = 0; 
 /*
  0 = ble off
@@ -172,13 +173,14 @@ void loop() {
   if (bleButtonVal == 1 && ble_status != 0) { // if the button is pressed and BLE is on turn it off 
     ble_status = 0;
     Serial.print("ble sts 0");
+    status_arr[0] = 0;
     delay(500);
 
   } else if (bleButtonVal == 1 && ble_status == 0) { // if the button is pressed and BLE is off turn it on
     ble_status = 1;
     bleOn = true;
     Serial.print("ble sts 1");
-    display = displayStatus(display, "BLE on");
+    status_arr[0] = 1;
     delay(500);
   }
 
@@ -231,7 +233,6 @@ void loop() {
     if (bleOn) { // if ble is on and the status is 0 turn it off
       BLE.disconnect();
       Serial.println("BLE off");
-      display = displayStatus(display, "BLE off");
       BLE.end();
       bleOn = false;
     }
@@ -241,7 +242,7 @@ void loop() {
     initWiFi(ssid, password);
     if(WiFi.status() == WL_CONNECTED){
       Serial.println("Connected to WiFi");
-      display = displayStatus(display, "Connected to WiFi");
+      status_arr[1] = 1;
       ble_status = 0;
     }
   } else if (wifiscan) { // scan wifi networks if wifiscan` is set to 1
@@ -250,10 +251,11 @@ void loop() {
     networks = scanWifi();
     display = displayStatus(display, "Scan complete");
     wifiscan = 0;
+  }else if (WiFi.status() == WL_DISCONNECTED) {
+    status_arr[1] = 0;
   }
-
+  
   /*callibrate the load cell and measure the weight*/
-  float weight = 0;
   if (callibrate) {
     scale = callibrateScale(callbFac, scale);
     callibrate = false;
@@ -261,8 +263,9 @@ void loop() {
     current_time_load_measure = millis();
     weight = readLoad(scale);
     Serial.printf("average value:\t %.2f \n", weight);
-    display = displayWeight(display, String(weight));
   }
+  display = displayWeight(display, String(weight), status_arr);
+
 
   /*deep sleep by ext0 or timer*/
   if(deepsleep) {
