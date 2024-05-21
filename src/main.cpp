@@ -16,6 +16,8 @@
 
 //deep sleep and RTC memory
 
+int battery_level = -1;
+int bat_level_pin = 33;
 bool deepsleep = false;
 int wakeupId = 1; // 1 for timer 2 for ext0 and 0 for others used to store the reason for wake up
 
@@ -46,7 +48,7 @@ int get_wakeup_reason() {
 HX711 scale;
 
 const int LOADCELL_DOUT_PIN = 19;
-const int LOADCELL_SCK_PIN = 23;
+const int LOADCELL_SCK_PIN = 18;
 
 float weight = 0;
 float callbFac = 22404.8;
@@ -135,6 +137,10 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(BLEswitch, INPUT_PULLUP);
+  pinMode(bat_level_pin, INPUT);
+
+  battery_level = battryLevel(bat_level_pin);
+  status_arr[2] = battery_level;
 
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN); // initialize the HX711 i.e. load cell
   
@@ -149,6 +155,22 @@ void setup() {
 
 void loop() {
 
+  if(battery_level == 0){ // check the battery level and go to sleep if it is too low
+    Serial.println("too low");
+    display = displayStatus(display, "Battery too low");
+    delay(1000);
+
+    display = clearOled(display);
+    delete display;
+    display = nullptr;
+
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
+    Serial.println("Going to sleep now");
+    Serial.flush();
+    esp_deep_sleep_start();
+  }
+
   // setting up the deep sleep conditions for the device
 
   if(wakeupId == 1){ // if woken up by timer we wait till the upload is complete or for 25 seconds
@@ -159,16 +181,16 @@ void loop() {
       deepsleep = true;
     }
   }else if(wakeupId == 2){ // if woken up by ext0 we wait for 60 secods if BLE is off or 3 minutes if BLE is on
-    sleep_time = 60;
+    sleep_time = 60*5;
     if(millis()>60000 && !bleOn){
       deepsleep = true;
     }else if(millis()>1000*60*3){
       deepsleep = true;
     }
-  }else if (wakeupId == 0 && ((WiFi.status() == WL_CONNECTED)|| millis()>10000)){ // this will run at the first boot up of the device and will go to sleep after 1 minute
+  }else if (wakeupId == 0 && ((WiFi.status() == WL_CONNECTED)|| millis()>10000)){ // this will run at the first boot up of the device and will go to sleep after 10 seconds
     deepsleep = true;
   }
-  
+
   int bleButtonVal = buttonPress(BLEswitch); // check the button press for BLE on/off long peess for on and for off
   if (bleButtonVal == 1 && ble_status != 0) { // if the button is pressed and BLE is on turn it off 
     ble_status = 0;
@@ -273,7 +295,6 @@ void loop() {
     display = clearOled(display);
     delete display;
     display = nullptr;
-
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
     esp_sleep_enable_timer_wakeup(sleep_time * uS_TO_S_FACTOR);
     delay(1000);
