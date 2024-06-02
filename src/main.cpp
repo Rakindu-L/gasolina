@@ -1,7 +1,3 @@
-// look in to deep sleep mode of esp32
-// power - ble on/off, wifi on/off or sleep idk
-// oled screen or leds i prefer a oled screen for data print
-// gas sensor - asa na mekata
 // fire base integration
 //wake up for ble on and timeout
 
@@ -27,6 +23,8 @@ int sleep_time = 60; // in seconds, time that the device will sleep
 RTC_DATA_ATTR char ssid[32];
 RTC_DATA_ATTR char password[32];
 RTC_DATA_ATTR bool wificonnect = false;
+RTC_DATA_ATTR bool callibrate = true;
+RTC_DATA_ATTR float initial_load = 0;
 
 /*to querry the wake up reason from deep sleep*/
 int get_wakeup_reason() {
@@ -51,8 +49,7 @@ const int LOADCELL_DOUT_PIN = 19;
 const int LOADCELL_SCK_PIN = 18;
 
 float weight = 0;
-float callbFac = 22404.8;
-bool callibrate = true;
+float callibFac = 22404.8;
 bool measure_load = true;
 unsigned long current_time_load_measure = 0;
 
@@ -94,7 +91,7 @@ BLEDescriptor ssidlabeldiscriptor("2901", "ssid");
 BLECharacteristic passCharactersitic("3de7b790-66bf-4a80-80ae-5970ead46097", BLEWrite, 32);
 BLEDescriptor passlabeldiscriptor("2901", "pass");
 
-BLEIntCharacteristic scanCharactersitic("3de7b790-66bf-4a80-80ae-5970ead46097", BLEWrite);
+BLEIntCharacteristic scanCharactersitic("3de7b790-66bf-4a80-80ae-5970e6d46097", BLEWrite);
 BLEDescriptor scanlabeldiscriptor("2901", "scan");
 
 /*for setting up BLE*/
@@ -174,17 +171,17 @@ void loop() {
   // setting up the deep sleep conditions for the device
 
   if(wakeupId == 1){ // if woken up by timer we wait till the upload is complete or for 25 seconds
-    sleep_time = 60*5; // 5 minutes
+    sleep_time = 60*30; // 30 minutes
     if(upload_complete){
       deepsleep = true;
     }else if(millis() > 25000){
       deepsleep = true;
     }
-  }else if(wakeupId == 2){ // if woken up by ext0 we wait for 60 secods if BLE is off or 3 minutes if BLE is on
+  }else if(wakeupId == 2){ // if woken up by ext0 we wait for 60 secods if BLE is off or 5 minutes if BLE is on
     sleep_time = 60*5;
     if(millis()>60000 && !bleOn){
       deepsleep = true;
-    }else if(millis()>1000*60*3){
+    }else if(millis()>1000*60*5){
       deepsleep = true;
     }
   }else if (wakeupId == 0 && ((WiFi.status() == WL_CONNECTED)|| millis()>10000)){ // this will run at the first boot up of the device and will go to sleep after 10 seconds
@@ -231,7 +228,7 @@ void loop() {
         delete [] ssid_get; 
         ssid_get = nullptr;
       }      
-
+      // for the code to work the ssid must be input first and then the pass remember when developing app
       password_get = BLEread(central, passCharactersitic, password_get); /*read the value and store it to RTC memory*/
       if(password_get){
         strncpy(password, password_get, sizeof(password) - 1);
@@ -260,12 +257,20 @@ void loop() {
     }
   }
   /*connect to wifi when pass and ssid both are given*/
-  if (wificonnect && (WiFi.status() == WL_DISCONNECTED)) {
+
+  if (wificonnect && (WiFi.status() == WL_DISCONNECTED || WL_CONNECT_FAILED)) {
     initWiFi(ssid, password);
+    Serial.println(WiFi.status());
     if(WiFi.status() == WL_CONNECTED){
       Serial.println("Connected to WiFi");
       status_arr[1] = 1;
       ble_status = 0;
+    }else if(WiFi.status() == WL_CONNECT_FAILED){
+      // here have to send status to the app for that well use network characteristics and also in above or have a seperate bloack to send that data 
+      Serial.print("connection failed retry password and ssid");
+      display = displayStatus(display, "incorrect password");
+      wificonnect = false;
+      delay(2000);
     }
   } else if (wifiscan) { // scan wifi networks if wifiscan` is set to 1
     networks = "";
@@ -279,11 +284,13 @@ void loop() {
   
   /*callibrate the load cell and measure the weight*/
   if (callibrate) {
-    scale = callibrateScale(callbFac, scale);
+    scale.set_scale(callibFac);
+    initial_load = readLoad(scale);
     callibrate = false;
-  } else if (measure_load && (millis() - current_time_load_measure > 5000)) {
+  } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
     current_time_load_measure = millis();
-    weight = readLoad(scale);
+    scale.set_scale(callibFac);
+    weight = readLoad(scale) - initial_load;
     Serial.printf("average value:\t %.2f \n", weight);
   }
   display = displayWeight(display, String(weight), status_arr);
