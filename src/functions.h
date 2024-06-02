@@ -4,6 +4,7 @@
 # include <Adafruit_SSD1306.h>
 
 int buttonPress(int num);
+int battryLevel(int num);
 
 String scanWifi();
 void initWiFi(char* ssid, char* password);
