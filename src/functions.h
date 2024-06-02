@@ -16,4 +16,8 @@ void BLEwriteString(String data, BLECharacteristic charactersitic);
 float readLoad(HX711 scale);
 HX711 callibrateScale(float x, HX711 scale);
 
-Adafruit_SSD1306 initOled(int sreenWidth, int screenHeight);
+Adafruit_SSD1306* initOled();
+Adafruit_SSD1306* clearOled(Adafruit_SSD1306* display);
+Adafruit_SSD1306* displayWeight(Adafruit_SSD1306* display, String text, int* status_arr);
+Adafruit_SSD1306* displayStatus(Adafruit_SSD1306* display, String text);
+Adafruit_SSD1306* displayBluetooth(Adafruit_SSD1306* display);
