@@ -39,11 +39,12 @@ int wakeupId = 1; // 1 for timer 2 for ext0 and 0 for others used to store the r
 #define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
 int sleep_time = 60; // in seconds, time that the device will sleep
 
-RTC_DATA_ATTR char ssid[32] = "Home";
-RTC_DATA_ATTR char password[32] = "1967April16";
-RTC_DATA_ATTR bool wificonnect = true;
-RTC_DATA_ATTR bool callibrate = true;
-RTC_DATA_ATTR float initial_load = 0;
+String ssid;
+String password;
+bool wificonnect;
+bool callibrate;
+float initial_load;
+bool clearall = false;
 
 /*to querry the wake up reason from deep sleep*/
 int get_wakeup_reason() {
@@ -162,8 +163,15 @@ void setup() {
 
   preferences.begin("my-app", false);
 
+  ssid = preferences.getString("ssid", "Home");
+  password = preferences.getString("password", "1967April16");
+  wificonnect = preferences.getBool("wificonnect", true);// change
+  callibrate = preferences.getBool("callibrate", true);
+  initial_load = preferences.getFloat("initial_load", 0);
+
   count = preferences.getULong("count", 0);
   randomf = preferences.getFloat("random", 40.0);// ----------------
+
   Serial.println(count);// ----------------
 
   battery_level = battryLevel(bat_level_pin);
@@ -253,16 +261,16 @@ void loop() {
 
       ssid_get = BLEread(central, ssidCharactersitic, ssid_get); /*read the value and store it to RTC memory*/
       if(ssid_get){
-        strncpy(ssid, ssid_get, sizeof(ssid) - 1);
-        ssid[sizeof(ssid) - 1] = '\0';
+        ssid = ssid_get;
+        preferences.putString("ssid", ssid);
         delete [] ssid_get; 
         ssid_get = nullptr;
       }      
       // for the code to work the ssid must be input first and then the pass remember when developing app
       password_get = BLEread(central, passCharactersitic, password_get); /*read the value and store it to RTC memory*/
       if(password_get){
-        strncpy(password, password_get, sizeof(password) - 1);
-        password[sizeof(password) - 1] = '\0'; 
+        password = password_get;
+        preferences.putString("password", password);
         delete [] password_get; 
         password_get = nullptr;
         wificonnect = true;
@@ -318,6 +326,9 @@ void loop() {
     scale.set_scale(callibFac);
     initial_load = readLoad(scale);
     callibrate = false;
+    preferences.putBool("callibrate", false);
+    preferences.putFloat("initial_load", initial_load);
+
   } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
     current_time_load_measure = millis();
     scale.set_scale(callibFac);
@@ -336,9 +347,14 @@ void loop() {
   }
   display = displayWeight(display, String(weight), status_arr);
 
-
+  if(clearall){
+    preferences.clear();
+    clearall = false;
+  }
   /*deep sleep by ext0 or timer*/
   if(deepsleep) {
+
+    preferences.putBool("wificonnect", wificonnect);
     
     preferences.end();
     display = clearOled(display);

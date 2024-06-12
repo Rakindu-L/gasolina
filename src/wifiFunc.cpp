@@ -27,7 +27,7 @@ String scanWifi() {
   return networks;
 }
 
-void initWiFi(char* ssid, char* password) {
+void initWiFi(String ssid, String password) {
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
   unsigned long int start_time = millis();

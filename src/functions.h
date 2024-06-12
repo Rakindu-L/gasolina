@@ -7,7 +7,7 @@ int buttonPress(int num);
 int battryLevel(int num);
 
 String scanWifi();
-void initWiFi(char* ssid, char* password);
+void initWiFi(String ssid, String password);
 
 BLEDevice BLEconnect();
 char* BLEread(BLEDevice central, BLECharacteristic charactersitic, char* outData);
