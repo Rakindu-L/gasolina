@@ -1,4 +1,4 @@
-// fire base integration
+
 //wake up for ble on and timeout
 
 #include <Arduino.h>
@@ -9,6 +9,25 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
+#include <Preferences.h>
+
+
+Preferences preferences;
+
+//firestore
+
+#define API_KEY "AIzaSyAsszyT5b6BImv3M4G_oNB9O1lTJ-RD2Dg"
+#define FIREBASE_PROJECT_ID "gassolina-39843"
+
+String USER_EMAIL =  "rakindutest@gfail.co";
+String USER_PASSWORD = "rakindusucks";
+
+String user_uid = "7nNXGvfQT4bHKC3iF8htlkjSJ6W2";
+unsigned long dataMillis = 0;
+unsigned long count = 0;
+float randomf = 0;
+
+bool upload_complete = false; // technically firebase but ok
 
 //deep sleep and RTC memory
 
@@ -20,9 +39,9 @@ int wakeupId = 1; // 1 for timer 2 for ext0 and 0 for others used to store the r
 #define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
 int sleep_time = 60; // in seconds, time that the device will sleep
 
-RTC_DATA_ATTR char ssid[32];
-RTC_DATA_ATTR char password[32];
-RTC_DATA_ATTR bool wificonnect = false;
+RTC_DATA_ATTR char ssid[32] = "Home";
+RTC_DATA_ATTR char password[32] = "1967April16";
+RTC_DATA_ATTR bool wificonnect = true;
 RTC_DATA_ATTR bool callibrate = true;
 RTC_DATA_ATTR float initial_load = 0;
 
@@ -62,7 +81,6 @@ char* password_get = nullptr;
 String networks = ""; // string to store wifi networks each separated by ">>" and end with "!!"
 
 int wifiscan = 0; // 1 for scan wifi 0 for not
-bool upload_complete = false; // technically firebase but ok
 
 
 // BLE setup and variables
@@ -80,6 +98,7 @@ int BLEswitch = 32;  // long press for turn on short for turn off
 bool bleOn = false;
 
 BLEDevice central;
+
 
 BLEService gasolinaConfig("68544538-7148-4fc4-b555-a029b320b33e");
 
@@ -129,12 +148,23 @@ void BLEsetup() {
   Serial.print("BLE setup done");
 }
 
+float randomout(float x){
+  float y = x - random(0, 50)/100.0;
+  Serial.println(y);
+  return y;
+}
 
 void setup() {
   Serial.begin(115200);
 
   pinMode(BLEswitch, INPUT_PULLUP);
   pinMode(bat_level_pin, INPUT);
+
+  preferences.begin("my-app", false);
+
+  count = preferences.getULong("count", 0);
+  randomf = preferences.getFloat("random", 40.0);// ----------------
+  Serial.println(count);// ----------------
 
   battery_level = battryLevel(bat_level_pin);
   status_arr[2] = battery_level;
@@ -152,33 +182,33 @@ void setup() {
 
 void loop() {
 
-  if(battery_level == 0){ // check the battery level and go to sleep if it is too low
-    Serial.println("too low");
-    display = displayStatus(display, "Battery too low");
-    delay(1000);
+  // if(battery_level == 0){ // check the battery level and go to sleep if it is too low
+  //   Serial.println("too low");
+  //   display = displayStatus(display, "Battery too low");
+  //   delay(1000);
 
-    display = clearOled(display);
-    delete display;
-    display = nullptr;
+  //   display = clearOled(display);
+  //   delete display;
+  //   display = nullptr;
 
-    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
-    Serial.println("Going to sleep now");
-    Serial.flush();
-    esp_deep_sleep_start();
-  }
+  //   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+  //   esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
+  //   Serial.println("Going to sleep now");
+  //   Serial.flush();
+  //   esp_deep_sleep_start();
+  // }
 
   // setting up the deep sleep conditions for the device
 
   if(wakeupId == 1){ // if woken up by timer we wait till the upload is complete or for 25 seconds
-    sleep_time = 60*30; // 30 minutes
+    sleep_time = 60*60; // 30 minutes
     if(upload_complete){
       deepsleep = true;
     }else if(millis() > 25000){
       deepsleep = true;
     }
   }else if(wakeupId == 2){ // if woken up by ext0 we wait for 60 secods if BLE is off or 5 minutes if BLE is on
-    sleep_time = 60*5;
+    sleep_time = 60*60;
     if(millis()>60000 && !bleOn){
       deepsleep = true;
     }else if(millis()>1000*60*5){
@@ -258,13 +288,14 @@ void loop() {
   }
   /*connect to wifi when pass and ssid both are given*/
 
-  if (wificonnect && (WiFi.status() == WL_DISCONNECTED || WL_CONNECT_FAILED)) {
+  if (wificonnect && (WiFi.status() == WL_DISCONNECTED || WiFi.status() == WL_CONNECT_FAILED)) {
     initWiFi(ssid, password);
-    Serial.println(WiFi.status());
     if(WiFi.status() == WL_CONNECTED){
       Serial.println("Connected to WiFi");
       status_arr[1] = 1;
       ble_status = 0;
+      firesbaseInit(API_KEY, USER_EMAIL, USER_PASSWORD);
+
     }else if(WiFi.status() == WL_CONNECT_FAILED){
       // here have to send status to the app for that well use network characteristics and also in above or have a seperate bloack to send that data 
       Serial.print("connection failed retry password and ssid");
@@ -292,13 +323,24 @@ void loop() {
     scale.set_scale(callibFac);
     weight = readLoad(scale) - initial_load;
     Serial.printf("average value:\t %.2f \n", weight);
+    if(!upload_complete && firebaseReady()){
+      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, randomf)){
+        randomf = randomout(randomf);
+        preferences.putFloat("random", randomf);
+        upload_complete = true;
+        count++;
+        preferences.putULong("count", count);
+        
+      }
+    }
   }
   display = displayWeight(display, String(weight), status_arr);
 
 
   /*deep sleep by ext0 or timer*/
   if(deepsleep) {
-
+    
+    preferences.end();
     display = clearOled(display);
     delete display;
     display = nullptr;
