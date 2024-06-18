@@ -26,6 +26,7 @@ String user_uid = "7nNXGvfQT4bHKC3iF8htlkjSJ6W2";
 unsigned long dataMillis = 0;
 unsigned long count = 0;
 float randomf = 0;
+bool firebase_init = true;
 
 bool upload_complete = false; // technically firebase but ok
 
@@ -66,7 +67,7 @@ int get_wakeup_reason() {
 HX711 scale;
 
 const int LOADCELL_DOUT_PIN = 19;
-const int LOADCELL_SCK_PIN = 18;
+const int LOADCELL_SCK_PIN = 23;
 
 float weight = 0;
 float callibFac = 22404.8;
@@ -82,10 +83,20 @@ char* password_get = nullptr;
 String networks = ""; // string to store wifi networks each separated by ">>" and end with "!!"
 
 int wifiscan = 0; // 1 for scan wifi 0 for not
+int wifi_status = 0; 
+/*
+WL_IDLE_STATUS      = 0
+WL_NO_SSID_AVAIL    = 1
+WL_SCAN_COMPLETED   = 2
+WL_CONNECTED        = 3
+WL_CONNECT_FAILED   = 4
+WL_CONNECTION_LOST  = 5
+WL_DISCONNECTED     = 6
+*/
 
 
 // BLE setup and variables
-int status_arr[3] = {0, 0, 0}; // 0 for ble status and 1 for wifi status 2 for battry status
+int status_arr[4] = {0, 0, 0, 0}; // 0 for ble status and 1 for wifi status 2 for battry status
 int ble_status = 0; 
 /*
  0 = ble off
@@ -168,6 +179,8 @@ void setup() {
   wificonnect = preferences.getBool("wificonnect", true);// change
   callibrate = preferences.getBool("callibrate", true);
   initial_load = preferences.getFloat("initial_load", 0);
+  // USER_EMAIL = preferences.getString("fire_email", "rakindutest@gfail.co");
+  // USER_PASSWORD = preferences.getString("fire_pass", "rakindusucks");
 
   count = preferences.getULong("count", 0);
   randomf = preferences.getFloat("random", 40.0);// ----------------
@@ -190,21 +203,24 @@ void setup() {
 
 void loop() {
 
-  // if(battery_level == 0){ // check the battery level and go to sleep if it is too low
-  //   Serial.println("too low");
-  //   display = displayStatus(display, "Battery too low");
-  //   delay(1000);
+  if(battery_level == 0){ // check the battery level and go to sleep if it is too low
+    Serial.println("too low");
+    //display = displayStatus(display, "Battery too low");
+    delay(1000);
 
-  //   display = clearOled(display);
-  //   delete display;
-  //   display = nullptr;
+    display = clearOled(display);
+    display->ssd1306_command(SSD1306_DISPLAYOFF);
+    display->ssd1306_command(SSD1306_CHARGEPUMP);
+    display->ssd1306_command(0x10);
+    delete display;
+    display = nullptr;
 
-  //   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-  //   esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
-  //   Serial.println("Going to sleep now");
-  //   Serial.flush();
-  //   esp_deep_sleep_start();
-  // }
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
+    Serial.println("Going to sleep now");
+    Serial.flush();
+    esp_deep_sleep_start();
+  }
 
   // setting up the deep sleep conditions for the device
 
@@ -222,7 +238,7 @@ void loop() {
     }else if(millis()>1000*60*5){
       deepsleep = true;
     }
-  }else if (wakeupId == 0 && ((WiFi.status() == WL_CONNECTED)|| millis()>10000)){ // this will run at the first boot up of the device and will go to sleep after 10 seconds
+  }else if (wakeupId == 0 && (millis()>60000)){ // this will run at the first boot up of the device and will go to sleep after 10 seconds
     deepsleep = true;
   }
 
@@ -231,16 +247,41 @@ void loop() {
     ble_status = 0;
     Serial.print("ble sts 0");
     status_arr[0] = 0;
-    delay(500);
 
   } else if (bleButtonVal == 1 && ble_status == 0) { // if the button is pressed and BLE is off turn it on
     ble_status = 1;
     bleOn = true;
     Serial.print("ble sts 1");
     status_arr[0] = 1;
-    delay(500);
   }
 
+    /*callibrate the load cell and measure the weight*/
+  if (callibrate) {
+    scale.set_scale(callibFac);
+    initial_load = readLoad(scale);
+    callibrate = false;
+    preferences.putBool("callibrate", false);
+    preferences.putFloat("initial_load", initial_load);
+
+  } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
+    current_time_load_measure = millis();
+    scale.set_scale(callibFac);
+    weight = readLoad(scale) - initial_load;
+    Serial.printf("average value:\t %.2f \n", weight);
+    if(!upload_complete && firebaseReady()){
+      display = displayUpload(display, status_arr); 
+      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, randomf)){
+        randomf = randomout(randomf);
+        preferences.putFloat("random", randomf);
+        upload_complete = true;
+        status_arr[3] = 1;
+        count++;
+        preferences.putULong("count", count);
+      }
+    }
+  }
+ display = displayWeight(display, String(weight), status_arr);
+ 
   /* setting up and using BLE the controlling is done mainly by the value of ble_status*/
   if (ble_status != 0) { 
     if (ble_status == 1 || ble_status == 4) {
@@ -295,61 +336,50 @@ void loop() {
     }
   }
   /*connect to wifi when pass and ssid both are given*/
-
-  if (wificonnect && (WiFi.status() == WL_DISCONNECTED || WiFi.status() == WL_CONNECT_FAILED)) {
+  if(wificonnect && wifi_status != 3){
     initWiFi(ssid, password);
-    if(WiFi.status() == WL_CONNECTED){
-      Serial.println("Connected to WiFi");
-      status_arr[1] = 1;
-      ble_status = 0;
-      firesbaseInit(API_KEY, USER_EMAIL, USER_PASSWORD);
-
-    }else if(WiFi.status() == WL_CONNECT_FAILED){
-      // here have to send status to the app for that well use network characteristics and also in above or have a seperate bloack to send that data 
-      Serial.print("connection failed retry password and ssid");
-      display = displayStatus(display, "incorrect password");
-      wificonnect = false;
-      delay(2000);
+    wifi_status = WiFi.status();
+  }
+  else if(wifi_status == 3){
+    status_arr[1] = 1;
+    display = displayWeight(display, String(weight), status_arr);
+    if(firebase_init)firesbaseInit(API_KEY, USER_EMAIL, USER_PASSWORD);
+    if(firebaseReady())firebase_init = false; // check agra
+    if(wifiscan == 1){
+      networks = scanWifi();
+      wifiscan = 0;
     }
-  } else if (wifiscan) { // scan wifi networks if wifiscan` is set to 1
-    networks = "";
-    display = displayStatus(display, "Scanning for WiFi");
-    networks = scanWifi();
-    display = displayStatus(display, "Scan complete");
-    wifiscan = 0;
-  }else if (WiFi.status() == WL_DISCONNECTED) {
+  }
+  else if(wifi_status == 4){
+    wificonnect = false;
+    display = displayStatus(display, "incorrect password");
+    networks = "incorrect password";
+    delay(1000);
+    wifi_status = -1;
+    //also send to network characteristics
+  }
+  else if(wifi_status == 1){
+    wificonnect = false;
+    display = displayStatus(display, "ssid not available");
+    networks = "ssid not available";
+    delay(1000);
+    wifi_status = -1;
+    //also send to network characteristics
+  }
+  else if(wifi_status == 5){
+    wificonnect = true;
     status_arr[1] = 0;
+    wifi_status = -1;
   }
-  
-  /*callibrate the load cell and measure the weight*/
-  if (callibrate) {
-    scale.set_scale(callibFac);
-    initial_load = readLoad(scale);
-    callibrate = false;
-    preferences.putBool("callibrate", false);
-    preferences.putFloat("initial_load", initial_load);
-
-  } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
-    current_time_load_measure = millis();
-    scale.set_scale(callibFac);
-    weight = readLoad(scale) - initial_load;
-    Serial.printf("average value:\t %.2f \n", weight);
-    if(!upload_complete && firebaseReady()){
-      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, randomf)){
-        randomf = randomout(randomf);
-        preferences.putFloat("random", randomf);
-        upload_complete = true;
-        count++;
-        preferences.putULong("count", count);
-        
-      }
-    }
+  else if(wifi_status == 6){
+    status_arr[1] = 0;
+    wifi_status = -1;
   }
-  display = displayWeight(display, String(weight), status_arr);
 
   if(clearall){
     preferences.clear();
     clearall = false;
+    while(1);
   }
   /*deep sleep by ext0 or timer*/
   if(deepsleep) {
@@ -357,7 +387,10 @@ void loop() {
     preferences.putBool("wificonnect", wificonnect);
     
     preferences.end();
-    display = clearOled(display);
+
+    display->ssd1306_command(SSD1306_DISPLAYOFF);
+    display->ssd1306_command(SSD1306_CHARGEPUMP);
+    display->ssd1306_command(0x10);
     delete display;
     display = nullptr;
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);

@@ -24,6 +24,8 @@ String scanWifi() {
   }
 
   delay(1000);
+  Serial.println(networks);
+
   return networks;
 }
 
@@ -40,6 +42,7 @@ void initWiFi(String ssid, String password) {
       break;
     } else if (millis() - start_time > 7000) {
       Serial.println("connect try failed");
+      Serial.println(WiFi.status());
       break;
     }
   }

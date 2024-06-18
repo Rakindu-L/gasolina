@@ -15,6 +15,7 @@ float readLoad(HX711 scale) {
   // remember to add a read period when using atleast do 1000
   scale.power_up();
   float val = scale.get_units(10);
+  Serial.println(scale.get_value(10));
   scale.power_down();
 
   return val;

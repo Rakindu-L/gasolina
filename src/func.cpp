@@ -17,7 +17,7 @@ int buttonPress(int num) {  // return 1 for long press and 0 for short press -1 
 int battryLevel(int num){
   int battry = 0;
   for(int i=0;i<10;i++){
-    battry =+ analogRead(num);
+    battry = battry + analogRead(num);
     delay(50);
   }
   battry = battry/10;
@@ -34,5 +34,7 @@ int battryLevel(int num){
     return 1;
   }else if(battry < 2500){
     return 0;
+  }else{
+    return -1;
   }
 }
