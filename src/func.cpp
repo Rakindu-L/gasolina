@@ -38,3 +38,18 @@ int battryLevel(int num){
     return -1;
   }
 }
+
+/*to querry the wake up reason from deep sleep*/
+int get_wakeup_reason() {
+  esp_sleep_wakeup_cause_t wakeup_reason;
+  int reason_id = 0;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch (wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_EXT0: reason_id = 2;Serial.println("wakeup caused by ext0"); break;
+    case ESP_SLEEP_WAKEUP_TIMER: reason_id = 1;Serial.println("Wakeup caused by timer"); break;
+    default: reason_id = 0; break;
+  }
+  return reason_id;
+}

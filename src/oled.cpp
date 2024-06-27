@@ -339,14 +339,6 @@ Adafruit_SSD1306* displayStatus(Adafruit_SSD1306* display, String text) {
     return display;
 }
 
-// Adafruit_SSD1306* displayBluetooth(Adafruit_SSD1306* display) {
-//     display->clearDisplay();
-//     display->drawBitmap(2, 2, bluetooth_logo, 16, 16, SSD1306_WHITE);
-//     display->display();
-//     return display;
-// }
-
-
 Adafruit_SSD1306* displayUpload (Adafruit_SSD1306* display, int* status_arr) {
     display->clearDisplay();
     display = displaynavbar(display, status_arr);
@@ -355,3 +347,11 @@ Adafruit_SSD1306* displayUpload (Adafruit_SSD1306* display, int* status_arr) {
     return display;
 }
 
+void OledOff(Adafruit_SSD1306* display) {
+    display -> clearDisplay();
+    display->ssd1306_command(SSD1306_DISPLAYOFF);
+    display->ssd1306_command(SSD1306_CHARGEPUMP);
+    display->ssd1306_command(0x10);
+    delete display;
+    display = nullptr;
+}

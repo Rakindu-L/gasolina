@@ -5,6 +5,7 @@
 
 int buttonPress(int num);
 int battryLevel(int num);
+int get_wakeup_reason();
 
 String scanWifi();
 void initWiFi(String ssid, String password);
@@ -21,9 +22,9 @@ Adafruit_SSD1306* initOled();
 Adafruit_SSD1306* clearOled(Adafruit_SSD1306* display);
 Adafruit_SSD1306* displayWeight(Adafruit_SSD1306* display, String text, int* status_arr);
 Adafruit_SSD1306* displayStatus(Adafruit_SSD1306* display, String text);
-// Adafruit_SSD1306* displayBluetooth(Adafruit_SSD1306* display);
 Adafruit_SSD1306* displayUpload(Adafruit_SSD1306* display, int* status_arr);
 Adafruit_SSD1306* displaynavbar(Adafruit_SSD1306* display, int* status_arr);
+void OledOff(Adafruit_SSD1306* display);
 
 
 void firesbaseInit(String API_KEY, String USER_EMAIL, String USER_PASSWORD);
