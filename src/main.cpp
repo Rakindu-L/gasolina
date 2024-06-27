@@ -177,39 +177,10 @@ void setup() {
 
   Serial.println("Gasolina by Silicone a Rysara team");
   display = initOled(); // initialize the oled screen
+  ble_status = 1; // start the BLE setup
 }
 
 void loop() {
-
-  if(battery_level == 0){ // check the battery level and go to sleep if it is too low
-    Serial.println("too low");
-    //display = displayStatus(display, "Battery too low");
-    delay(1000);
-    OledOff(display);
-    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
-    Serial.println("Going to sleep now");
-    Serial.flush();
-    esp_deep_sleep_start();
-  }
-
-  // setting up the deep sleep conditions for the device
-  switch (wakeupId)
-  {
-  case 1:// timer
-    sleep_time = 60*60;// 1 hour
-    if(upload_complete){ deepsleep = true;}else if(millis() > 25000){deepsleep = true;}
-    break;
-  case 2:// ext0
-    sleep_time = 60*60;
-    if(millis()>60000 && !bleOn){deepsleep = true;}else if(millis()>1000*60*5){deepsleep = true;}
-    break;
-  case 0:// first boot
-    if(millis()>10000){deepsleep = true;}
-    break;
-  default:
-    break;
-  }
 
   int bleButtonVal = buttonPress(BLEswitch); // check the button press for BLE on/off long peess for on and for off
   if (bleButtonVal == 1 && ble_status != 0) { // if the button is pressed and BLE is on turn it off 
@@ -222,37 +193,6 @@ void loop() {
     status_arr[0] = 1;
   }
 
-  /*callibrate the load cell and measure the weight*/
-
-  if (callibrate) {
-    scale.set_scale(callibFac);
-    initial_load = readLoad(scale);
-    callibrate = false;
-    preferences.putBool("callibrate", false);
-    preferences.putFloat("initial_load", initial_load);
-
-  } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
-    current_time_load_measure = millis();
-    scale.set_scale(callibFac);
-    weight = readLoad(scale) - initial_load;
-    Serial.printf("average value:\t %.2f \n", weight);
-    if(!upload_complete && firebaseReady()){
-      display = displayUpload(display, status_arr); 
-      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, randomf)){// change to weight
-        randomf = randomout(randomf);
-        preferences.putFloat("random", randomf); // change thses to RTC memory
-        upload_complete = true;
-        status_arr[3] = 1;
-        count++;
-        preferences.putULong("count", count);
-      }else{
-        status_arr[3] = 0;
-        display = displayStatus(display, "upload failed");
-        delay(2000);
-      }
-    }
-  }
-  display = displayWeight(display, String(weight), status_arr);
  
   /* setting up and using BLE the controlling is done mainly by the value of ble_status*/
   if (ble_status != 0) { 
@@ -275,11 +215,11 @@ void loop() {
       ssid_get = BLEread(central, ssidCharactersitic, ssid_get); /*read the value and store it to RTC memory*/
       if(ssid_get){
         ssid = ssid_get;
-        if(ssid.lastIndexOf('@wifi') != -1){
-          ssid = ssid.substring(0, ssid.lastIndexOf('@wifi'));
+        if(ssid.lastIndexOf("@wifi") != -1){
+          ssid = ssid.substring(0, ssid.lastIndexOf("@wifi"));
           preferences.putString("ssid", ssid);
-        }else if(ssid.lastIndexOf('@fire') != -1){
-          ssid = ssid.substring(0, ssid.lastIndexOf('@fire'));
+        }else if(ssid.lastIndexOf("@fire") != -1){
+          ssid = ssid.substring(0, ssid.lastIndexOf("@fire"));
           preferences.putString("fire_email", ssid);
         }
         delete [] ssid_get; 
@@ -289,12 +229,12 @@ void loop() {
       password_get = BLEread(central, passCharactersitic, password_get); /*read the value and store it to RTC memory*/
       if(password_get){
         password = password_get;
-        if(password.lastIndexOf('@wifi') != -1){
-          password = password.substring(0, password.lastIndexOf('@wifi'));
+        if(password.lastIndexOf("@wifi") != -1){
+          password = password.substring(0, password.lastIndexOf("@wifi"));
           preferences.putString("password", password);
           wificonnect = true;
-        }else if(password.lastIndexOf('@fire') != -1){
-          password = password.substring(0, password.lastIndexOf('@fire'));
+        }else if(password.lastIndexOf("@fire") != -1){
+          password = password.substring(0, password.lastIndexOf("@fire"));
           preferences.putString("fire_pass", password);
         }
         delete [] password_get; 
@@ -324,20 +264,17 @@ void loop() {
   if(wificonnect && wifi_status != 3){
     initWiFi(ssid, password);
     wifi_status = WiFi.status();
+    Serial.println(wifi_status);
+    wificonnect = false;
   }
   else if(wifi_status == 3){
     status_arr[1] = 1;
     display = displayWeight(display, String(weight), status_arr);
-    if(firebase_init)firesbaseInit(API_KEY, USER_EMAIL, USER_PASSWORD);
-    if(firebaseReady())firebase_init = false; // check agra
-    if(wifiscan == 1){
-      networks = scanWifi();
-      wifiscan = 0;
-    }
   }
   else if(wifi_status == 4){
     wificonnect = false;
     display = displayStatus(display, "incorrect password");
+    Serial.println("incorrect password");
     networks = "incorrect password";
     delay(1000);
     wifi_status = -1;
@@ -346,6 +283,7 @@ void loop() {
   else if(wifi_status == 1){
     wificonnect = false;
     display = displayStatus(display, "ssid not available");
+    Serial.println("ssid not available");
     networks = "ssid not available";
     delay(1000);
     wifi_status = -1;
@@ -360,24 +298,8 @@ void loop() {
     status_arr[1] = 0;
     wifi_status = -1;
   }
-
-  if(clearall){
-    preferences.clear();
-    clearall = false;
-    while(1);
-  }
-
-  /*deep sleep by ext0 or timer*/
-  if(deepsleep) {
-    preferences.putBool("wificonnect", wificonnect);
-    preferences.end();
-    OledOff(display);
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
-    esp_sleep_enable_timer_wakeup(sleep_time * uS_TO_S_FACTOR);
-    Serial.println("Setup ESP32 to sleep for " + String(sleep_time) + " Seconds");
-    Serial.println("Going to sleep now");
-    Serial.flush();
-    delay(2000);
-    esp_deep_sleep_start();
+  if(wifiscan){
+    networks = scanWifi();
+    wifiscan = 0;
   }
 }
