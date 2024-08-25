@@ -18,7 +18,6 @@ int battryLevel(int num){
   int battry = 0;
   for(int i=0;i<10;i++){
     battry = battry + analogRead(num);
-    delay(50);
   }
   battry = battry/10;
   

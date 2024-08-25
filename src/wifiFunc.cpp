@@ -40,7 +40,7 @@ void initWiFi(String ssid, String password) {
       Serial.print("connected: ");
       Serial.println(WiFi.localIP());
       break;
-    } else if (millis() - start_time > 7000) {
+    } else if (millis() - start_time > 5000) {
       Serial.println("connect try failed");
       Serial.println(WiFi.status());
       break;

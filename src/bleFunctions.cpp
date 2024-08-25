@@ -6,7 +6,7 @@ BLEDevice BLEconnect() {
   if (central) {
     Serial.print("Connected to central: ");
     Serial.println(central.address());
-    delay(3000);
+    // delay(3000);
     BLE.stopAdvertise();
   }
   return central;
@@ -49,6 +49,6 @@ void BLEwriteString(String data, BLECharacteristic charactersitic) {
     value[i] = data.charAt(i);
   }
   if (charactersitic.writeValue(value, data.length())) {
-    delay(1000);
+    delay(100);
   }
 }

@@ -1,5 +1,5 @@
 
-//wake up for ble on and timeout
+// change callib fac
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -10,6 +10,9 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 #include <Preferences.h>
+#include <nvs_flash.h>
+
+bool reset_all = false;
 
 Preferences preferences;
 Adafruit_SSD1306* display;
@@ -30,6 +33,7 @@ String USER_PASSWORD;
 
 bool firebase_init = true;
 bool upload_complete = false;
+int upload_try_count = 0;
 // just for testing
 unsigned long count = 0;
 float randomf = 0;
@@ -57,6 +61,10 @@ float weight = 0;
 float callibFac = 22404.8;
 bool measure_load = true;
 unsigned long current_time_load_measure = 0;
+int cylinder_type = -1;
+int prev_load = 0;
+bool first_time = false;
+int real_weight = 0;
 
 /*wifi setup and variables*/
 char* ssid_get = nullptr;//only for read from ble and buffer unitll passed to RTC memory 
@@ -64,6 +72,8 @@ char* password_get = nullptr;
 String networks = ""; // string to store wifi networks each separated by ">>" and end with "!!"
 int wifiscan = 0; // 1 for scan wifi 0 for not
 int wifi_status = 0; 
+int wifi_try_count = 0; // count the number of times the wifi is tried to connect
+int n = 0; // number of wifi networks found
 /*
 WL_IDLE_STATUS      = 0
 WL_NO_SSID_AVAIL    = 1
@@ -139,14 +149,15 @@ void BLEsetup() {
   Serial.print("BLE setup done");
 }
 
-// random number generator just for testing
-float randomout(float x){
-  float y = x - random(0, 50)/100.0;
-  Serial.println(y);
-  return y;
-}
 
 void setup() {
+  
+  if(reset_all){
+    nvs_flash_erase(); // erase the NVS partition and...
+    nvs_flash_init(); // initialize the NVS partition.
+    while(true);
+  }
+
   Serial.begin(115200);
 
   pinMode(BLEswitch, INPUT_PULLUP);
@@ -156,14 +167,13 @@ void setup() {
 
   ssid = preferences.getString("ssid", "Home");
   password = preferences.getString("password", "1967April16");
-  wificonnect = preferences.getBool("wificonnect", true);// change
+  wificonnect = preferences.getBool("wificonnect", false);// change
   callibrate = preferences.getBool("callibrate", true);
   initial_load = preferences.getFloat("initial_load", 0);
   USER_EMAIL = preferences.getString("fire_email", "rakindutest@gfail.co");
   USER_PASSWORD = preferences.getString("fire_pass", "rakindusucks");
 
   count = preferences.getULong("count", 0);
-  randomf = preferences.getFloat("random", 40.0);// testing
 
   battery_level = battryLevel(bat_level_pin);
   status_arr[2] = battery_level;
@@ -220,6 +230,8 @@ void loop() {
     ble_status = 1;
     bleOn = true;
     status_arr[0] = 1;
+    display = displayStatus(display, "BLE on");//=============================================
+    delay(1500);
   }
 
   /*callibrate the load cell and measure the weight*/
@@ -231,16 +243,26 @@ void loop() {
     preferences.putBool("callibrate", false);
     preferences.putFloat("initial_load", initial_load);
 
-  } else if (measure_load && (millis() - current_time_load_measure > 1000)) {
+  } else if (measure_load && (millis() - current_time_load_measure > 500)) {
     current_time_load_measure = millis();
     scale.set_scale(callibFac);
     weight = readLoad(scale) - initial_load;
     Serial.printf("average value:\t %.2f \n", weight);
-    if(!upload_complete && firebaseReady()){
+
+    // int weight_change = prev_load - weight;
+
+    if(weight > 12.5){
+      cylinder_type = 2;
+      // if(first_time){real_weight = weight;first_time= false;}else{real_weight = real_weight - weight_change;}
+      
+    }else if(weight > 5 && weight < 12.5){
+      cylinder_type = 1;
+      // if(first_time){real_weight = weight;first_time= false;}else{real_weight = real_weight - weight_change;}
+    }
+
+    if(!upload_complete && firebaseReady() && (upload_try_count < 2) && cylinder_type != 1){//==========================
       display = displayUpload(display, status_arr); 
-      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, randomf)){// change to weight
-        randomf = randomout(randomf);
-        preferences.putFloat("random", randomf); // change thses to RTC memory
+      if(firebaseSend(user_uid, FIREBASE_PROJECT_ID, count, weight)){// change to weight
         upload_complete = true;
         status_arr[3] = 1;
         count++;
@@ -275,11 +297,11 @@ void loop() {
       ssid_get = BLEread(central, ssidCharactersitic, ssid_get); /*read the value and store it to RTC memory*/
       if(ssid_get){
         ssid = ssid_get;
-        if(ssid.lastIndexOf('@wifi') != -1){
-          ssid = ssid.substring(0, ssid.lastIndexOf('@wifi'));
+        if(ssid.lastIndexOf("@wifi") != -1){
+          ssid = ssid.substring(0, ssid.lastIndexOf("@wifi"));
           preferences.putString("ssid", ssid);
-        }else if(ssid.lastIndexOf('@fire') != -1){
-          ssid = ssid.substring(0, ssid.lastIndexOf('@fire'));
+        }else if(ssid.lastIndexOf("@fire") != -1){
+          ssid = ssid.substring(0, ssid.lastIndexOf("@fire"));
           preferences.putString("fire_email", ssid);
         }
         delete [] ssid_get; 
@@ -289,13 +311,15 @@ void loop() {
       password_get = BLEread(central, passCharactersitic, password_get); /*read the value and store it to RTC memory*/
       if(password_get){
         password = password_get;
-        if(password.lastIndexOf('@wifi') != -1){
-          password = password.substring(0, password.lastIndexOf('@wifi'));
+        if(password.lastIndexOf("@wifi") != -1){
+          password = password.substring(0, password.lastIndexOf("@wifi"));
           preferences.putString("password", password);
           wificonnect = true;
-        }else if(password.lastIndexOf('@fire') != -1){
-          password = password.substring(0, password.lastIndexOf('@fire'));
+          wifi_try_count = 0;
+        }else if(password.lastIndexOf("@fire") != -1){
+          password = password.substring(0, password.lastIndexOf("@fire"));
           preferences.putString("fire_pass", password);
+          upload_try_count = 0;
         }
         delete [] password_get; 
         password_get = nullptr;
@@ -320,20 +344,37 @@ void loop() {
     }
   }
 
+  if(wifiscan){
+    Serial.println("scanning wifi");
+    n = WiFi.scanNetworks();
+    Serial.println("Scan done");
+    if (n == 0) {
+      Serial.println("no networks found");
+    } else {
+      Serial.print(n);
+      Serial.println(" networks found");
+      networks = "";
+      for(int i = 0; i < n; ++i){
+        Serial.println(WiFi.SSID(i));
+        networks = networks + WiFi.SSID(i) + ">>";
+      }
+      networks = networks + "!!";
+    }
+  wifiscan = 0;
+  }
   /*connect to wifi when pass and ssid both are given*/
-  if(wificonnect && wifi_status != 3){
-    initWiFi(ssid, password);
-    wifi_status = WiFi.status();
+  if(wificonnect && wifi_status != 3 ){
+    if(wifi_try_count < 2){
+      initWiFi(ssid, password);
+      wifi_status = WiFi.status();
+      wifi_try_count++;
+    }
   }
   else if(wifi_status == 3){
     status_arr[1] = 1;
     display = displayWeight(display, String(weight), status_arr);
     if(firebase_init)firesbaseInit(API_KEY, USER_EMAIL, USER_PASSWORD);
     if(firebaseReady())firebase_init = false; // check agra
-    if(wifiscan == 1){
-      networks = scanWifi();
-      wifiscan = 0;
-    }
   }
   else if(wifi_status == 4){
     wificonnect = false;
