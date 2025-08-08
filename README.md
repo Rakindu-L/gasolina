@@ -44,6 +44,15 @@ The system consists of:
 - Built with a focus on **usability**, **power efficiency**, and **visual appeal**  
 - A comprehensive **market and business analysis** was conducted prior to development to validate real-world needs and feasibility
 
+<p align="center">
+  <img src="images/product.jpg" alt="Image 1" height="200"/>
+  <img src="images/leaflet.jpg" alt="Image 2" height="200"/>
+  <img src="images/cad.jpg" alt="Image 3" height="200"/>
+  <img src="images/pcb.jpg" alt="Image 4" height="200"/>
+</p>
+
+
+
 ---
 
 ## 🧰 Tech Stack & Tools
@@ -75,7 +84,7 @@ This project is divided into multiple focused repositories for better modularity
 - 🔗 [**Gassolina – Mobile App**](https://github.com/your-username/gassolina-app)  
   Cross-platform mobile app built with React Native and Firebase. Handles user interface, configuration, analytics, and device setup.
 
-- 🔗 [**Gassolina – Embedded Firmware**](https://github.com/your-username/gassolina-firmware)  
+- 🔗 [**Gassolina – Embedded Firmware**](https://github.com/Rakindu-L/gasolina)  
   Battery-efficient firmware for the ESP32-based embedded device. Includes gas level sensing, Wi-Fi/BLE communication, and power management.
 
 - 🔗 [**Gassolina – PCB Design**](https://github.com/your-username/gassolina-pcb)  
@@ -90,7 +99,7 @@ This project is divided into multiple focused repositories for better modularity
 
 | Name                | GitHub                                              | Contributions                                                                                           |
 |----------------------------------|-----------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| **Agrajith Pavithra**| [@github-handle](https://github.com/github-handle) | makarket reseach, enclosure design and manufacture,                                               |
-| **Agra Navarathne**| [@github-handle](https://github.com/github-handle) | Mobile app UI design and development using Figma, React and Firebase.                                                 |
-| **Rakindu Luchitha**| [@rakindu](https://github.com/rakindu)              | Embedded system design including sensor interfacing, data processing, and cloud integration. Designed system circuitry.|
-| **Rivikula Fernando**| [@github-handle](https://github.com/github-handle) | PCB design and layout, schematic design, and testing.                                                            |
+| **Agrajith Pavithra**| [@Agrajith](https://github.com/github-handle) | makarket reseach, enclosure design and manufacture.                                             |
+| **Agra Navarathne**| [@Agra](https://github.com/github-handle) | Mobile app UI design and development using Figma, React and Firebase.                                                 |
+| **Rakindu Luchitha**| [@rakindu](https://github.com/rakindu)              | Embedded system design & implemetation, and cloud integration. system circuitry Design.|
+| **Rivikula Fernando**| [@Rivikula](https://github.com/github-handle) | PCB design and layout, schematic design, and testing.                                                            |
