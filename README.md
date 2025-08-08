@@ -81,7 +81,7 @@ The system consists of:
 
 This project is divided into multiple focused repositories for better modularity and development workflow:
 
-- 🔗 [**Gassolina – Mobile App**](https://github.com/your-username/gassolina-app)  
+- 🔗 [**Gassolina – Mobile App**](https://github.com/silveradium/Gassolina)  
   Cross-platform mobile app built with React Native and Firebase. Handles user interface, configuration, analytics, and device setup.
 
 - 🔗 [**Gassolina – Embedded Firmware**](https://github.com/Rakindu-L/gasolina)  
