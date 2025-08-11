@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="https://your-image-link.com/gassolina-icon.png" alt="Gassolina Logo" width="150"/>
-</p>
 
 # 🔥 Gassolina
 
@@ -99,7 +96,7 @@ This project is divided into multiple focused repositories for better modularity
 
 | Name                | GitHub                                              | Contributions                                                                                           |
 |----------------------------------|-----------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| **Agrajith Pavithra**| [@Agrajith](https://github.com/github-handle) | makarket reseach, enclosure design and manufacture.                                             |
+| **Agrajith Pavithra**| [@Agrajith](https://github.com/AgraPWeragoda) | makarket reseach, enclosure design and manufacture.                                             |
 | **Agra Navarathne**| [@Agra](https://github.com/github-handle) | Mobile app UI design and development using Figma, React and Firebase.                                                 |
 | **Rakindu Luchitha**| [@rakindu](https://github.com/rakindu)              | Embedded system design & implemetation, and cloud integration. system circuitry Design.|
 | **Rivikula Fernando**| [@Rivikula](https://github.com/github-handle) | PCB design and layout, schematic design, and testing.                                                            |
