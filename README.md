@@ -87,7 +87,7 @@ This project is divided into multiple focused repositories for better modularity
 - 🔗 [**Gassolina – PCB Design**](https://github.com/your-username/gassolina-pcb)  
   Custom PCB schematics and layout designed using Altium Designer.
 
-- 🔗 [**Gassolina – Enclosure CAD**]([https://github.com/your-username/gassolina-cad](https://github.com/Rakindu-L/gasolina/blob/8ebff9b88a1b50071cc48fce722510fe2ec71905/images/Final%20View%202.jpeg))  
+- 🔗 [**Gassolina – Enclosure CAD**](https://github.com/Rakindu-L/gasolina/blob/8ebff9b88a1b50071cc48fce722510fe2ec71905/images/Final%20View%202.jpeg)  
   3D enclosure and hardware mount designs modeled in SolidWorks to fit standard LPG tanks and modern kitchen environments.
 
 ---
